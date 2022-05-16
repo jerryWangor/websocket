@@ -1,15 +1,16 @@
-package main
+package util
 
 import (
 	redigo "github.com/gomodule/redigo/redis"
+	"websocket/config"
 )
 
-var redispass string = "crimoon2015"
-var redishost string = "10.0.111.154:52311"
+var redispass string = config.GlobalConfig.Redis_pass
+var redishost string = config.GlobalConfig.Redis_host+":"+config.GlobalConfig.Redis_port
 var Redis_pool *redigo.Pool
 
 
-func GetPool() redigo.Conn{
+func GetRedisPool() redigo.Conn{
 	return Redis_pool.Get()
 }
 func RedisPoolInit(){

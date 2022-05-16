@@ -1,0 +1,8 @@
+{
+  "Websocket_host": "127.0.0.1",
+  "Websocket_port": "20002",
+  "Redis_host": "10.0.111.154",
+  "Redis_port": "52311",
+  "Redis_pass": "crimoon2015",
+  "Api_addr": "http://host/order/handleOrder111"
+}

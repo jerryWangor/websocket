@@ -1,4 +1,4 @@
-package socket
+package socket_server
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"websocket/util"
 )
 
 const (
@@ -63,7 +64,7 @@ type wsConnection struct {
 	closeChan chan byte // 关闭通知
 	id        int64
 	user	*userinfo
-	order 	*Order
+	order 	*util.Order
 }
 func wsHandler(resp http.ResponseWriter, req *http.Request) {
 	// 应答客户端告知升级连接为websocket
@@ -94,7 +95,7 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 		isClosed:  false,
 		id:        maxConnId,
 		user:	user,
-		order:	&Order{},
+		order:	&util.Order{},
 	}
 	wsConnAll[maxConnId] = wsConn
 	log.Println("当前在线人数", len(wsConnAll))
@@ -153,10 +154,11 @@ func (wsConn *wsConnection) reqHandle(){
 				 msg.data = []byte(`
 		{"Accid": 1, "Action": 0, "Symbol": "BTC","Side":1,"Amount":11,"Price":11}
 	`)
-				postdata := &PostData{}
+				postdata := &util.PostData{}
 				err := json.Unmarshal(msg.data,postdata)
-				log.Println("参数解析失败", err.Error())
-
+				if err !=nil {
+					log.Println("参数解析失败", err.Error())
+				}
 				res := wsConn.order.PlaceOrder(postdata)
 				fmt.Printf("下单操作接口返回 %v \n 参数%+v",res,postdata)
 
@@ -185,7 +187,7 @@ func (wsConn *wsConnection) getRedisPush()  {
 				default:
 					fmt.Printf("未关闭通道继续运行")
 			}
-		conn := GetPool()
+		conn := util.GetRedisPool()
 		r,e :=redigo.Bytes(conn.Do("get","url"))
 		if e==nil{
 			wsConn.outChan <-&wsMessage{websocket.TextMessage,r}
@@ -193,7 +195,7 @@ func (wsConn *wsConnection) getRedisPush()  {
 			//o :=&Order{}
 			//o.GenerateOrderId()
 			//fmt.Printf("订单号  %v ",o.OrderID)
-		fmt.Printf("%v %v  %v %v\n", now,len(wsConn.outChan),e , r)
+		fmt.Printf("%v %v  %v %v\n", now,len(wsConn.outChan),e , string(r))
 	}
 }
 
@@ -254,7 +256,6 @@ func StartWebsocket(addrPort string) {
 
 }
 func init() {
-	RedisPoolInit()
 	//c, err := redis.Dial("tcp", "10.0.111.154:52311",redis.DialPassword("crimoon2015"))
 	//redis_conn = c
 	//if err != nil {
