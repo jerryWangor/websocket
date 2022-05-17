@@ -87,8 +87,8 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 	log.Println("userid:",claim.UserID)
 	user,err := auth.CheckUser(claim.UserID)
 	if err!=nil {
-		log.Println("解析token出现错误：",err)
-		wsSocket.WriteMessage(websocket.TextMessage, []byte("解析token出现错误"))
+		log.Println("未找到用户：",err)
+		wsSocket.WriteMessage(websocket.TextMessage, util.FormatReturn(util.HTTP_ERROR,"未找到用户",""))
 		wsSocket.Close()
 		return
 	}
@@ -123,13 +123,11 @@ func httpHandler(resp http.ResponseWriter, req *http.Request) {
 	//resp.Write([]byte(d))
 	user,err := auth.Login(req.FormValue("user"),req.FormValue("pass"))
 	if err!=nil {
-		resp.Write([]byte("未找到该用户"))
+		resp.Write(util.FormatReturn(util.HTTP_ERROR,"未找到该用户",""))
 		return
 	}
 	user.Token,_=auth.GenerateToken(strconv.FormatInt(user.Id,10))
-	res_data,err := json.Marshal(user)
-	fmt.Println("生成的token:",string(res_data),err,user)
-	resp.Write(res_data)
+	resp.Write(util.FormatReturn(util.HTTP_OK,"",user))
 }
 
 // 处理客户端的消息到inchan
@@ -174,7 +172,7 @@ func (wsConn *wsConnection) reqHandle(){
 				res := wsConn.order.PlaceOrder(postdata)
 				fmt.Printf("下单操作接口返回 %v \n 参数%+v",res,postdata)
 
-				if err := wsConn.wsSocket.WriteMessage(websocket.TextMessage, []byte(res)); err != nil {
+				if err := wsConn.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"",res) ); err != nil {
 					log.Println("发送消息给客户端发生错误", err.Error())
 					// 切断服务
 					wsConn.close()
@@ -218,7 +216,9 @@ func (wsConn *wsConnection) wsWriteLoop() {
 		// 取一个应答
 		case msg := <-wsConn.outChan:
 			// 写给websocket
-			if err := wsConn.wsSocket.WriteMessage(msg.messageType, msg.data); err != nil {
+			data := &auth.Userinfo{}
+			json.Unmarshal(msg.data,data)
+			if err := wsConn.wsSocket.WriteMessage(msg.messageType,util.FormatReturn(util.HTTP_OK,"",data)); err != nil {
 				log.Println("发送消息给客户端发生错误", err.Error())
 				// 切断服务
 				wsConn.close()
@@ -249,7 +249,7 @@ func (wsConn *wsConnection) close() {
 //广播
 func guangbo(msgtype int, data []byte) {
 	for _, wsConn := range wsConnAll {
-		if err := wsConn.wsSocket.WriteMessage(msgtype, data); err != nil {
+		if err := wsConn.wsSocket.WriteMessage(msgtype, util.FormatReturn(util.HTTP_OK,"",data)); err != nil {
 			log.Println("发送消息给客户端发生错误", err.Error())
 			// 切断服务
 			wsConn.close()
@@ -264,7 +264,6 @@ func StartWebsocket(addrPort string) {
 	http.HandleFunc("/ws", wsHandler)
 	http.HandleFunc("/http", httpHandler)
 	http.ListenAndServe(addrPort, nil)
-
 }
 func init() {
 	//c, err := redis.Dial("tcp", "10.0.111.154:52311",redis.DialPassword("crimoon2015"))
@@ -279,7 +278,4 @@ func init() {
 	// logger = log.New(nil, "socket \t", log.Ldate|log.Ltime|log.Lshortfile)
 	// logger = log
 }
-//func main() {
-//	StartWebsocket("127.0.0.1:20002")
-//	defer Redis_pool.Close()
-//}
+

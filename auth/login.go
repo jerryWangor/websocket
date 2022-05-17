@@ -5,10 +5,10 @@ import (
 	"strconv"
 )
 type Userinfo struct {
-	Id int64	//用户ID
-	Money int64		//用户钱
-	Star_ids string		//自选股ID
-	Token string //jwt令牌
+	Id int64	`json:"id"`//用户ID
+	Money int64	`json:"money"`	//用户钱
+	Star_ids string	`json:"star_ids"`	//自选股ID
+	Token string `json:"token"`//jwt令牌
 }
 //HTTP登陆
 func Login(username string,password string)  (*Userinfo,error) {
