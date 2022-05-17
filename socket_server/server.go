@@ -2,15 +2,16 @@ package socket_server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
-	redigo "github.com/gomodule/redigo/redis"
+	//redigo "github.com/gomodule/redigo/redis"
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 	"websocket/util"
+	"websocket/auth"
 )
 
 const (
@@ -49,11 +50,7 @@ var upgrader = websocket.Upgrader{
 		return true
 	},
 }
-type userinfo struct {
-	id int64	//用户ID
-	money int64		//用户钱
-	star_ids string		//自选股ID
-}
+
 // 客户端连接
 type wsConnection struct {
 	wsSocket *websocket.Conn // 底层websocket
@@ -63,7 +60,7 @@ type wsConnection struct {
 	isClosed  bool
 	closeChan chan byte // 关闭通知
 	id        int64
-	user	*userinfo
+	user	*auth.Userinfo
 	order 	*util.Order
 }
 func wsHandler(resp http.ResponseWriter, req *http.Request) {
@@ -77,10 +74,21 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	//登录
-	user,err := login(req.FormValue("user"),req.FormValue("pass"))
-
-	if err!=nil{
-		log.Printf("登录信息有误,用户（%v）,密码（%v）%v \n",req.FormValue("user"),req.FormValue("pass"), err.Error())
+	claim,err:=auth.ParseToken(req.FormValue("token"))
+	if err!=nil {
+		log.Println("解析token出现错误：",err)
+		wsSocket.Close()
+		return
+	}else if time.Now().Unix() > claim.ExpiresAt {
+		log.Println("token时间超时,请重新登陆！")
+		wsSocket.Close()
+		return
+	}
+	log.Println("userid:",claim.UserID)
+	user,err := auth.CheckUser(claim.UserID)
+	if err!=nil {
+		log.Println("解析token出现错误：",err)
+		wsSocket.WriteMessage(websocket.TextMessage, []byte("解析token出现错误"))
 		wsSocket.Close()
 		return
 	}
@@ -109,16 +117,20 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 	// 推送消息给客户端
 	go wsConn.wsWriteLoop()
 }
-
-func login(username string,password string)  (*userinfo,error) {
-	if username=="root" &&  password=="root" {
-		return &userinfo{
-			11,8888,"1,2,3",
-		},nil
+func httpHandler(resp http.ResponseWriter, req *http.Request) {
+	req.ParseForm()
+	//d := fmt.Sprintf("参数有：%+v",req.Form)
+	//resp.Write([]byte(d))
+	user,err := auth.Login(req.FormValue("user"),req.FormValue("pass"))
+	if err!=nil {
+		resp.Write([]byte("未找到该用户"))
+		return
 	}
-	return &userinfo{},errors.New("未找到该用户")
+	user.Token,_=auth.GenerateToken(strconv.FormatInt(user.Id,10))
+	res_data,err := json.Marshal(user)
+	fmt.Println("生成的token:",string(res_data),err,user)
+	resp.Write(res_data)
 }
-
 
 // 处理客户端的消息到inchan
 func (wsConn *wsConnection) wsReadLoop() {
@@ -177,7 +189,7 @@ func (wsConn *wsConnection) reqHandle(){
 
 //读取redis消息推送到outChan
 func (wsConn *wsConnection) getRedisPush()  {
-	c := time.NewTicker(21 * time.Second)
+	c := time.NewTicker(5 * time.Second)
 	for now:= range c.C {
 		select {
 				case v, ok := <-wsConn.closeChan:
@@ -185,17 +197,16 @@ func (wsConn *wsConnection) getRedisPush()  {
 					c.Stop()
 					return
 				default:
-					fmt.Printf("未关闭通道继续运行")
+					fmt.Printf("未关闭通道继续运行\n")
 			}
-		conn := util.GetRedisPool()
-		r,e :=redigo.Bytes(conn.Do("get","url"))
-		if e==nil{
-			wsConn.outChan <-&wsMessage{websocket.TextMessage,r}
-		}
-			//o :=&Order{}
-			//o.GenerateOrderId()
-			//fmt.Printf("订单号  %v ",o.OrderID)
-		fmt.Printf("%v %v  %v %v\n", now,len(wsConn.outChan),e , string(r))
+		//conn := util.GetRedisPool()
+		//r,e :=redigo.Bytes(conn.Do("get","url"))
+		//if e==nil{
+		//	wsConn.outChan <-&wsMessage{websocket.TextMessage,r}
+		//}
+		r,_ :=json.Marshal(wsConn.user)
+		wsConn.outChan <-&wsMessage{websocket.TextMessage,r}
+		fmt.Printf("%v \n", now)
 	}
 }
 
@@ -251,7 +262,7 @@ func guangbo(msgtype int, data []byte) {
 func StartWebsocket(addrPort string) {
 	wsConnAll = make(map[int64]*wsConnection)
 	http.HandleFunc("/ws", wsHandler)
-
+	http.HandleFunc("/http", httpHandler)
 	http.ListenAndServe(addrPort, nil)
 
 }
