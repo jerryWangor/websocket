@@ -4,5 +4,5 @@
   "Redis_host": "10.0.111.154",
   "Redis_port": "52311",
   "Redis_pass": "crimoon2015",
-  "Api_addr": "http://host/order/handleOrder111"
+  "Api_addr": "http://10.0.17.84:8080/order/handleOrder"
 }

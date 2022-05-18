@@ -1,21 +1,23 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"time"
-	"websocket/auth"
+	"net/http"
 )
 func main(){
-		// 生成一个token
-		token,_:=auth.GenerateToken("12")
-		fmt.Println("生成的token:",token)
-		// 验证并解密token
-		claim,err:=auth.ParseToken(token)
-		if err!=nil {
-			fmt.Println("解析token出现错误：",err)
-		}else if time.Now().Unix() > claim.ExpiresAt {
-			fmt.Println("时间超时")
-		}else {
-			fmt.Println("userid:",claim.UserID)
-		}
+	http.HandleFunc("/http", httpHandler)
+	http.ListenAndServe("127.0.0.1:8080", nil)
+}
+func httpHandler(resp http.ResponseWriter, req *http.Request) {
+	req.ParseForm()
+	 fmt.Printf("参数有：%+v\n",req.Form)
+
+
+	decoder:=json.NewDecoder(req.Body)
+	var params map[string]interface{}
+	decoder.Decode(&params)
+	fmt.Println("POST json req: ",params)
+	fmt.Fprintln(resp,`{"code":0,"msg":"succ"}`)
+
 }

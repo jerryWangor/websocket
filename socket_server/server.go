@@ -161,18 +161,17 @@ func (wsConn *wsConnection) reqHandle(){
 	for{
 		select {
 			case msg := <-wsConn.inChan:
-				 msg.data = []byte(`
-		{"Accid": 1, "Action": 0, "Symbol": "BTC","Side":1,"Amount":11,"Price":11}
-	`)
+	//			 msg.data = []byte(`
+	//	{ "Action": 0, "Symbol": "BTC","Side":1,"Amount":11,"Price":11}
+	//`)
 				postdata := &util.PostData{}
 				err := json.Unmarshal(msg.data,postdata)
 				if err !=nil {
 					log.Println("参数解析失败", err.Error())
 				}
 				res := wsConn.order.PlaceOrder(postdata)
-				fmt.Printf("下单操作接口返回 %v \n 参数%+v",res,postdata)
 
-				if err := wsConn.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"",res) ); err != nil {
+				if err := wsConn.wsSocket.WriteMessage(websocket.TextMessage,res ); err != nil {
 					log.Println("发送消息给客户端发生错误", err.Error())
 					// 切断服务
 					wsConn.close()
@@ -187,7 +186,7 @@ func (wsConn *wsConnection) reqHandle(){
 
 //读取redis消息推送到outChan
 func (wsConn *wsConnection) getRedisPush()  {
-	c := time.NewTicker(5 * time.Second)
+	c := time.NewTicker(555 * time.Second)
 	for now:= range c.C {
 		select {
 				case v, ok := <-wsConn.closeChan:
