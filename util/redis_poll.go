@@ -2,6 +2,7 @@ package util
 
 import (
 	redigo "github.com/gomodule/redigo/redis"
+	"time"
 	"websocket/config"
 )
 
@@ -28,5 +29,6 @@ func RedisPoolInit(){
 			return c, nil
 		},
 		MaxIdle:100,
+		IdleTimeout: 240 * time.Second,
 	}
 }

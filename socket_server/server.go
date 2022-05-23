@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
-	//redigo "github.com/gomodule/redigo/redis"
+	redigo "github.com/gomodule/redigo/redis"
 	"log"
 	"net/http"
 	"strconv"
@@ -41,6 +41,7 @@ type wsMessage struct {
 // ws 的所有连接
 // 用于广播
 var wsConnAll map[int64]*wsConnection
+var wsUidToWsid map[int64] int64
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -106,6 +107,12 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 		order:	&util.Order{},
 	}
 	wsConnAll[maxConnId] = wsConn
+	if _, ok := wsUidToWsid[user.Id]; ok {
+		// 该用户存在，T出之前的客户端
+		wsConnAll[wsUidToWsid[user.Id]].close()
+		log.Println("该用户存在，T出之前的客户端")
+	}
+	wsUidToWsid[user.Id] = maxConnId
 	log.Println("当前在线人数", len(wsConnAll))
 
 	// 读取客户端消息
@@ -119,6 +126,10 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 }
 func httpHandler(resp http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
+	resp.Header().Set("Access-Control-Allow-Origin", "*")
+	resp.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	resp.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
 	//d := fmt.Sprintf("参数有：%+v",req.Form)
 	//resp.Write([]byte(d))
 	user,err := auth.Login(req.FormValue("user"),req.FormValue("pass"))
@@ -161,9 +172,12 @@ func (wsConn *wsConnection) reqHandle(){
 	for{
 		select {
 			case msg := <-wsConn.inChan:
-	//			 msg.data = []byte(`
-	//	{ "Action": 0, "Symbol": "BTC","Side":1,"Amount":11,"Price":11}
-	//`)
+				//			 msg.data = []byte(`
+				//	{ "Action": 0, "Symbol": "BTC","Side":0,"Amount":11,"Price":11}//买
+				//`)
+				//			 msg.data = []byte(`
+				//	{ "Action": 0, "Symbol": "BTC","Side":1,"Amount":11,"Price":11}//卖
+				//`)
 				postdata := &util.PostData{}
 				err := json.Unmarshal(msg.data,postdata)
 				if err !=nil {
@@ -241,6 +255,7 @@ func (wsConn *wsConnection) close() {
 		wsConn.isClosed = true
 		// 删除这个连接的变量
 		delete(wsConnAll, wsConn.id)
+		delete(wsUidToWsid, wsConn.user.Id)
 		close(wsConn.closeChan)
 	}
 }
@@ -260,9 +275,98 @@ func guangbo(msgtype int, data []byte) {
 // 启动程序
 func StartWebsocket(addrPort string) {
 	wsConnAll = make(map[int64]*wsConnection)
+	wsUidToWsid = make(map[int64]int64)
 	http.HandleFunc("/ws", wsHandler)
 	http.HandleFunc("/http", httpHandler)
+	for i:=0;i<3;i++ {
+		//开多少个协程，每个协程对应一个消费组下的消费组
+		go listenMQ(i)
+	}
 	http.ListenAndServe(addrPort, nil)
+}
+func listenMQ(i int)  {
+	c := time.NewTicker(2 * time.Second)
+	for _ = range c.C {
+		conn := util.GetRedisPool()
+		defer conn.Close()
+		//获取成交结果
+		trades,err :=redigo.Strings(conn.Do("keys","matching:trades*"))
+		//获取撤单结果
+		//cancelresults,err :=redigo.Strings(conn.Do("keys","matching:cancelresults*"))
+		if err!=nil{
+			log.Printf("errors %v",err)
+		}
+		log.Printf("%+v ",trades,)
+		for _,symbol := range trades{
+			groups,err := conn.Do("xinfo","groups",symbol)
+			groups_name := symbol+"_groups"
+			if len(groups.([]interface{}))==0{
+				//创建消费组
+				conn.Do("xgroup","create",symbol,groups_name,0)
+				//log.Printf("创建消费组 %v",groups_name)
+			}else{
+				var P1 struct{
+					Name string `redis:"name"`
+					Consumers int `redis:"consumers"`
+					Pending int `redis:"pending"`
+					Ldi string `redis:"last-delivered-id"`
+				}
+				flag := false
+				for _,v := range groups.([]interface{}){
+					vv, err := redigo.Values(v,nil)
+					if err != nil {
+						log.Println(err)
+					}
+					if err := redigo.ScanStruct(vv, &P1); err != nil {
+						log.Println(err)
+					}
+					if P1.Name==groups_name{
+						flag = true
+						log.Printf("创建过消费组直接使用 %v",groups_name)
+					}
+				}
+				if !flag{
+					//创建消费组
+					conn.Do("xgroup","create",symbol,groups_name,0)
+					//log.Printf("创建消费组2 %v",groups_name)
+				}
+			}
+			if err!=nil {
+				log.Printf("errors1 %v",err)
+				continue
+			}
+			//拉取信息到groups_user用户消费
+			groups_user := "u" + strconv.Itoa(i)
+			conn.Do("xreadgroup","group",groups_name, groups_user,"count","2", "streams",symbol, ">")
+
+			//查看消费者各自接收到的未ack的数据
+			r,err :=conn.Do("xreadgroup","group",groups_name, groups_user,"count","5", "streams",symbol, "0")
+			if err!=nil {
+				log.Printf("errors2 %v",err)
+				continue
+			}
+			for _,v := range r.([]interface{}){
+				for kk,vv := range v.([]interface{}){
+					if kk==1{
+						for _,vvv := range vv.([]interface{}) {
+							key,_:= redigo.Strings(vvv,nil)
+							for kkkk,vvvv := range vvv.([]interface{}) {
+								if kkkk==1 {
+									val,_:= redigo.StringMap(vvvv,nil)
+									fmt.Printf("info :%+v %+v \n", key[0],val)
+									//利用取到的key,val 来发送给客户端消费
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+			//log.Println("xreadgroup","group",groups_name, groups_user,"count","5", "streams",symbol, "0")
+
+		log.Printf("wsConnAll:%+v\n",wsConnAll)
+		log.Printf("wsUidToWsid:%+v\n \n",wsUidToWsid)
+	}
 }
 func init() {
 	//c, err := redis.Dial("tcp", "10.0.111.154:52311",redis.DialPassword("crimoon2015"))

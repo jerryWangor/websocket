@@ -1,8 +1,13 @@
 {
-  "Websocket_host": "127.0.0.1",
+  "Websocket_host": "10.0.17.46",
   "Websocket_port": "20002",
-  "Redis_host": "10.0.111.154",
-  "Redis_port": "52311",
-  "Redis_pass": "crimoon2015",
+  "Redis_host": "42.193.50.38",
+  "Redis_port": "9001",
+  "Redis_pass": "jerry123",
+  "Mysql_host": "127.0.0.1",
+  "Mysql_port": "3306",
+  "Mysql_user": "root",
+  "Mysql_pass": "root",
+  "Mysql_db": "match",
   "Api_addr": "http://10.0.17.84:8080/order/handleOrder"
 }

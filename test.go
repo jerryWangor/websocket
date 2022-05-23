@@ -1,23 +1,22 @@
 package main
 
 import (
-	"encoding/json"
+	//"fmt"
 	"fmt"
-	"net/http"
+	"websocket/util"
 )
 func main(){
-	http.HandleFunc("/http", httpHandler)
-	http.ListenAndServe("127.0.0.1:8080", nil)
+	fmt.Printf("%v",util.Redis_pool)
+	//执行增删改
+	//query里面是sql语句。
+	//result, e := util.DB.Exec("insert into user(name,money) values(?,?);", "小扬", 8888)
+	//if e!=nil{
+	//	fmt.Println("err=",e)
+	//	return
+	//}
+	//rowsAffected, _ := result.RowsAffected()
+	//lastInsertId, _ := result.LastInsertId()
+	//fmt.Println("受影响的行数=",rowsAffected)
+	//fmt.Println("最后一行的ID=",lastInsertId)
 }
-func httpHandler(resp http.ResponseWriter, req *http.Request) {
-	req.ParseForm()
-	 fmt.Printf("参数有：%+v\n",req.Form)
 
-
-	decoder:=json.NewDecoder(req.Body)
-	var params map[string]interface{}
-	decoder.Decode(&params)
-	fmt.Println("POST json req: ",params)
-	fmt.Fprintln(resp,`{"code":0,"msg":"succ"}`)
-
-}

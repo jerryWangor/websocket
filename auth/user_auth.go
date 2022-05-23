@@ -15,7 +15,7 @@ type  Claims struct {
 // GenerateToken 生成token的函数
 func GenerateToken(userid string)(string,error){
 	nowTime :=time.Now()
-	expireTime:=nowTime.Add(3*time.Hour)
+	expireTime:=nowTime.Add(24*time.Hour)
 
 	claims:=Claims{
 		userid,  // 自行添加的信息

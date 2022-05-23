@@ -66,12 +66,12 @@ func (o *Order) post(postData *PostData) []byte {
 
 	resp, err := http.Post(config.GlobalConfig.Api_addr, "application/json", responseBody)
 	if err != nil {
-		log.Fatalln("post handleOrder errors", err)
+		log.Println("post handleOrder errors", err)
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
 	}
 	sb := string(body)
 	fmt.Printf("参数 %+v \n 下单操作接口返回 %v \n",responseBody,sb)
