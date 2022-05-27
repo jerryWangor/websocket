@@ -15,6 +15,7 @@ import (
 
 type orderFace interface {
 	PlaceOrder()	//下单
+	CancelOrder() //撤单
 	GenerateOrderId()	//生成订单号
 }
 type Order struct {
@@ -49,14 +50,43 @@ func (o *Order) GenerateOrderId() int64{
 	o.OrderID = OrderIdWork.GetId()
 	return o.OrderID
 }
-func (o *Order) PlaceOrder(data *PostData) []byte{
+type Api_struct struct {
+	Code int `json:"code"`
+	Msg string `json:"msg"`
+}
+func (o *Order) PlaceOrder(data *PostData,userid int) *Api_struct{
 	data.Time = time.Now().Unix()
 	md5str := fmt.Sprintf("%x", md5.Sum([]byte(strconv.FormatInt(data.Time, 10) + "a4fdc2af6949b3945b8e556d9fbce343")))
 	data.Sign = md5str
 	data.OrderId = strconv.FormatInt(o.GenerateOrderId(), 10)
 	data.Type = 0
 	res := o.post(data)
-	return res
+
+	_, err := DB.Exec("insert into `order`(userid,orderid,status,symbol,action,side,type,amount,price,api_res) values(?,?,?,?,?,?,?,?,?,?);",
+		userid,data.OrderId,0,data.Symbol,
+		data.Action,data.Side,
+		data.Type,data.Amount,
+		data.Price,
+			string(res))
+	if err != nil {
+		log.Printf("get failed, err:%v\n", err)
+	}
+
+	t := &Api_struct{}
+	json.Unmarshal(res,t)
+	//userinfo.Money = userinfo.Money-(data.Amount*data.Price)
+	return t
+}
+func (o *Order) CancelOrder(data *PostData) *Api_struct{
+	data.Time = time.Now().Unix()
+	md5str := fmt.Sprintf("%x", md5.Sum([]byte(strconv.FormatInt(data.Time, 10) + "a4fdc2af6949b3945b8e556d9fbce343")))
+	data.Sign = md5str
+	//data.OrderId = strconv.FormatInt(o.GenerateOrderId(), 10)
+	data.Type = 0
+	res := o.post(data)
+	t := &Api_struct{}
+	json.Unmarshal(res,t)
+	return t
 }
 
 func (o *Order) post(postData *PostData) []byte {
@@ -67,6 +97,7 @@ func (o *Order) post(postData *PostData) []byte {
 	resp, err := http.Post(config.GlobalConfig.Api_addr, "application/json", responseBody)
 	if err != nil {
 		log.Println("post handleOrder errors", err)
+		return FormatReturn(HTTP_ERROR,"撮合系统无响应，请稍后再试","")
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -74,6 +105,6 @@ func (o *Order) post(postData *PostData) []byte {
 		log.Println(err)
 	}
 	sb := string(body)
-	fmt.Printf("参数 %+v \n 下单操作接口返回 %v \n",responseBody,sb)
+	fmt.Printf("参数 %+v \n 下单操作接口返回 %v \n",string(postBody),sb)
 	return body
 }

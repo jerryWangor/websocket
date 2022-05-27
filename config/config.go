@@ -11,6 +11,11 @@ type globalConfig struct {
 	Redis_host string
 	Redis_port string
 	Redis_pass string
+	Mysql_host string
+	Mysql_port string
+	Mysql_user string
+	Mysql_pass string
+	Mysql_db string
 	Api_addr string
 }
 var GlobalConfig *globalConfig
