@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 	"websocket/config"
+	"github.com/shopspring/decimal"
 )
 
 type orderFace interface {
@@ -35,6 +36,26 @@ type PostData struct {
 	Amount float64 `json:"amount"` //数量	*/传
 	Price float64 `json:"price"` //价格	*传
 	//code=0 是成功 其他失败
+}
+type MsgType2 struct {
+	Status int `json:"status"`
+	Orderid string `json:"orderid"`
+	Symbol string `json:"symbol"`
+	Createtime string `json:"createtime"`
+	Dealtime string `json:"dealtime"`
+}
+type OrderLine struct {
+	Orderid string
+	Status int
+	Create_time string `mysql:"create_time"`
+	Deal_time string `mysql:"deal_time"`
+	Symbol string
+	Action int
+	Side int
+	Amount float64
+	Price float64
+	Userid int
+	Deal_amount float64 `mysql:"deal_amount"`
 }
 func init()  {
 	OrderIdWork = NewOrderWorker()
@@ -107,4 +128,83 @@ func (o *Order) post(postData *PostData) []byte {
 	sb := string(body)
 	fmt.Printf("参数 %+v \n 下单操作接口返回 %v \n",string(postBody),sb)
 	return body
+}
+
+func OrderMQHandle(orderid string,mq map[string]string) int64{
+	//log.Printf("OrderMQHandle :%+v %+v %T\n", orderid,mq)
+	aa,_:=strconv.Atoi(orderid)
+	if aa==0{
+		return 0
+	}
+	sqlStr := "select userid,amount,price,side,deal_amount,symbol from `order` where orderid=? and status <>1"
+	var User struct{
+		Userid int64
+		Amount float64
+		Price float64
+		Side int
+		Deal_amount float64
+		Symbol string
+	}
+	err := DB.Get(&User, sqlStr,orderid )
+	if err!=nil {
+		log.Printf("获取原订单amount 失败 %+v info :%+v\n", err,orderid)
+		return 0
+	}
+	var status int
+	mq_amount,_ := strconv.ParseFloat(mq["amount"],64)
+	mq_price,_ := strconv.ParseFloat(mq["price"],64)
+	if User.Amount-User.Deal_amount == mq_amount{
+		//全部成交
+		status = 1
+	}else {
+		//部分成交
+		status = 2
+	}
+		//修改订单状态
+		//开始一个事务，返回一个事务对象tx
+		tx, err := DB.Beginx()
+		//修改订单状态及成交数量，成交时间
+		var err1,err2,err3 error
+	switch User.Side {
+	case 0://买单
+		now_time :=time.Now().Format("2006-01-02 15:04:05")
+		_,err1 = tx.Exec("update `order` set status=?, deal_time=?,deal_amount=deal_amount+? where orderid=?",
+			status,
+			now_time,
+			mq_amount,
+			orderid,
+		)
+		//修改用户band_money扣减
+		//如果成交价格低于挂单价格，则还要返还冻结里面钱到账户里
+		cj := decimal.NewFromFloat(mq_amount).Mul(decimal.NewFromFloat(User.Price).Sub(decimal.NewFromFloat(mq_price)))
+		dj := decimal.NewFromFloat(User.Price).Mul(decimal.NewFromFloat(mq_amount))
+		//fmt.Printf("买单成交价格：%+v，%+v,%+v,%+v \n",User.Price,mq_amount,dj,cj)
+		_,err2 = tx.Exec("update user set money=money+?, band_money=band_money-?  where id=?",cj, dj, User.Userid)
+		//更新用户对应标的存量
+		_,err3 = tx.Exec("insert stock (userid,symbol,stock_num,last_time) VALUES(?,?,?,?) " +
+			"on DUPLICATE KEY UPDATE userid=VALUES(userid),symbol=VALUES(symbol),last_time=VALUES(last_time),stock_num=VALUES(stock_num)+stock_num",User.Userid,User.Symbol,mq_amount,now_time)
+
+	case 1: //卖单
+		now_time :=time.Now().Format("2006-01-02 15:04:05")
+		_,err1 = tx.Exec("update `order` set status=?, deal_time=?,deal_amount=deal_amount+? where orderid=?",
+			status,
+			now_time,
+			mq_amount,
+			orderid,
+		)
+		//如果成交价格高于挂单价格，则还要按实际价格加钱
+		cj := decimal.NewFromFloat(mq_amount).Mul(decimal.NewFromFloat(mq_price))
+		_,err2 = tx.Exec("update user set money=money+?  where id=?",cj, User.Userid)
+		//更新用户对应标的存量
+		_,err3 = tx.Exec("insert stock (userid,symbol,band_stock_num,last_time) VALUES(?,?,?,?) " +
+			"on DUPLICATE KEY UPDATE userid=VALUES(userid),symbol=VALUES(symbol),last_time=VALUES(last_time),band_stock_num=band_stock_num-VALUES(band_stock_num)",User.Userid,User.Symbol,mq_amount,now_time)
+	}
+	if err1 != nil || err2 != nil || err3 != nil{
+		tx.Rollback()
+		log.Printf("消费订单%v失败，数据库没修改成功 0:%+v 1:%+v 2:%+v 3:%+v\n", orderid,err,err1,err2,err3)
+		return 0
+	}else{
+		tx.Commit()
+		return User.Userid
+	}
 }

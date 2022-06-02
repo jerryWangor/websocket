@@ -2,6 +2,8 @@ package util
 
 import (
 	redigo "github.com/gomodule/redigo/redis"
+	"log"
+	"strconv"
 	"time"
 	"websocket/config"
 )
@@ -31,4 +33,44 @@ func RedisPoolInit(){
 		MaxIdle:100,
 		IdleTimeout: 240 * time.Second,
 	}
+}
+
+func GetSymbolConsumeData(conn redigo.Conn, symbol string,uid int) (string,string,error)  {
+
+	groups,_ := conn.Do("xinfo","groups",symbol)
+	groups_name := symbol+"_groups"
+	if len(groups.([]interface{}))==0{
+		//创建消费组
+		conn.Do("xgroup","create",symbol,groups_name,0)
+		//log.Printf("创建消费组 %v",groups_name)
+	}else{
+		var P1 struct{
+			Name string `redis:"name"`
+			Consumers int `redis:"consumers"`
+			Pending int `redis:"pending"`
+			Ldi string `redis:"last-delivered-id"`
+		}
+		flag := false
+		for _,v := range groups.([]interface{}){
+			vv, err := redigo.Values(v,nil)
+			if err != nil {
+				log.Println(err)
+			}
+			if err := redigo.ScanStruct(vv, &P1); err != nil {
+				log.Println(err)
+			}
+			if P1.Name==groups_name{
+				flag = true
+			}
+		}
+		if !flag{
+			//创建消费组
+			conn.Do("xgroup","create",symbol,groups_name,0)
+		}
+	}
+
+	//拉取信息到groups_user用户消费
+	groups_user := "u" + strconv.Itoa(uid)
+	conn.Do("xreadgroup","group",groups_name, groups_user,"count","2", "streams",symbol, ">")
+	return groups_name,groups_user,nil
 }

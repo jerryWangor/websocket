@@ -14,6 +14,13 @@ type Userinfo struct {
 	Star_ids string	`json:"star_ids"`	//自选股ID
 	Band_money float64 `json:"band_money"`//jwt令牌
 	Token string `json:"token"`//jwt令牌
+	Stocks map[string]*Stock
+}
+type Stock struct {
+	Symbol string
+	LastTime string `db:"last_time"`
+	StockNum float64 `db:"stock_num"`
+	BandStockNum float64 `db:"band_stock_num"`
 }
 //HTTP登陆
 func Login(username string,password string)  (*Userinfo,error) {
@@ -24,7 +31,7 @@ func Login(username string,password string)  (*Userinfo,error) {
 		log.Printf("get failed, err:%v\n", err)
 		return &Userinfo{},errors.New("未找到该用户")
 	}
-	fmt.Printf("userinfo %v\n", u)
+	fmt.Printf("userinfo 登录 %v\n", u)
 	return &u,nil
 
 }
