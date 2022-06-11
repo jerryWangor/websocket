@@ -8,6 +8,7 @@ import (
 	"github.com/shopspring/decimal"
 	"log"
 	"net/http"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -59,6 +60,7 @@ type wsConnection struct {
 	inChan   chan *wsMessage // 读队列
 	outChan  chan *wsMessage // 写队列
 	mutex     sync.Mutex // 避免重复关闭管道,加锁处理
+	Mux 	sync.RWMutex //并发发消息的锁
 	isClosed  bool
 	closeChan chan byte // 关闭通知
 	id        int64
@@ -100,8 +102,8 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 	// 连接数保持一定数量，超过的部分不提供服务
 	wsConn := &wsConnection{
 		wsSocket:  wsSocket,
-		inChan:    make(chan *wsMessage, 1000),
-		outChan:   make(chan *wsMessage, 1000),
+		inChan:    make(chan *wsMessage, 10000),
+		outChan:   make(chan *wsMessage, 10000),
 		closeChan: make(chan byte),
 		isClosed:  false,
 		id:        maxConnId,
@@ -122,9 +124,9 @@ func wsHandler(resp http.ResponseWriter, req *http.Request) {
 	//处理客户端消息
 	go wsConn.reqHandle()
 	// 读取redis推送消息
-	go wsConn.getRedisPush()
+	//go wsConn.getRedisPush()
 	// 推送消息给客户端
-	go wsConn.wsWriteLoop()
+	//go wsConn.wsWriteLoop()
 }
 func httpHandler(resp http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
@@ -142,6 +144,11 @@ func httpHandler(resp http.ResponseWriter, req *http.Request) {
 	user.Token,_=auth.GenerateToken(strconv.FormatInt(user.Id,10))
 	resp.Write(util.FormatReturn(util.HTTP_OK,"",user))
 }
+var read_num = 0
+var read_chan_num = 0
+var read_chanxd_num = 0
+var read_chanxdd_num = 0
+var read_chanxdds_num = 0
 
 // 处理客户端的消息到inchan
 func (wsConn *wsConnection) wsReadLoop() {
@@ -164,8 +171,13 @@ func (wsConn *wsConnection) wsReadLoop() {
 		// 放入请求队列,消息入栈
 		select {
 		case wsConn.inChan <- req:
+			read_num++
 		case <-wsConn.closeChan:
-			return
+			// 获取到关闭通知,等消息处理完后关闭改携程
+			//for{
+			if len(wsConn.inChan)==0{
+				return
+			}
 		}
 	}
 }
@@ -173,9 +185,11 @@ func (wsConn *wsConnection) wsReadLoop() {
 func (wsConn *wsConnection) reqHandle(){
 	conn := util.GetRedisPool()
 	defer conn.Close()
+
 	for{
 		select {
-			case msg := <-wsConn.inChan:
+			case msg:= <-wsConn.inChan:
+				read_chan_num++
 				//			 msg.data = []byte(`
 				//	{"msgdata":{ "Action": 0, "Symbol": "BTC","Side":0,"Amount":11,"Price":1000},"msgtype":1}//买
 				//`)
@@ -185,12 +199,13 @@ func (wsConn *wsConnection) reqHandle(){
 				postdata := &util.ReqData{}
 				err := json.Unmarshal(msg.data,postdata)
 				if err !=nil {
-					wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"参数有误！",""));
+					wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"参数有误！",""))
 					log.Println("参数解析失败", err.Error())
 				}
 				log.Printf("请求来了 %+v\n",postdata)
 				switch postdata.MsgType {
 					case 1://下单类型
+						read_chanxd_num++
 						flag := false
 						if postdata.MsgData.Symbol =="" {
 							flag = true
@@ -211,13 +226,15 @@ func (wsConn *wsConnection) reqHandle(){
 											all_amount := postdata.MsgData.Price*postdata.MsgData.Amount
 											//fmt.Println("aaa",all_amount,wsConn.user.Money,all_amount>wsConn.user.Money)
 											if  all_amount>wsConn.user.Money {
-												wsConn.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_ERROR,"下单失败！余额不足！",""));
+												wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"下单失败！余额不足！",""));
 												log.Println("下单失败！余额不足！")
 											}else{
 												t := wsConn.order.PlaceOrder(&postdata.MsgData, int(wsConn.user.Id))
 
-												fmt.Printf("%+v %v\n",t,t.Msg=="success")
+												//fmt.Printf("%+v %v\n",t,t.Msg=="success")
+												read_chanxdd_num++
 												if t.Msg=="success" {
+													read_chanxdds_num++
 													wsConn.user.Money,_ = (decimal.NewFromFloat(wsConn.user.Money).Sub(decimal.NewFromFloat(all_amount))).Float64()
 													wsConn.user.Band_money,_ = (decimal.NewFromFloat(wsConn.user.Band_money).Add(decimal.NewFromFloat(all_amount))).Float64()
 													//fmt.Printf("下单的钱：%+v %v\n",wsConn.user.Money,wsConn.user.Band_money)
@@ -228,7 +245,7 @@ func (wsConn *wsConnection) reqHandle(){
 												}
 												//mm,_ :=json.Marshal(t)
 												if err := wsConn.wsSocket.WriteMessage(websocket.TextMessage, postdata.FormatReturn(util.HTTP_OK,"请求成功！",t)); err != nil {
-													log.Println("发送消息给客户端发生错误", err.Error())
+													log.Println("发送消息给客户端发生错误1", err.Error())
 													// 切断服务
 													wsConn.close()
 												}
@@ -244,10 +261,12 @@ func (wsConn *wsConnection) reqHandle(){
 											}else{
 												if stock_num>=postdata.MsgData.Amount {//可以卖出下单
 													t := wsConn.order.PlaceOrder(&postdata.MsgData, int(wsConn.user.Id))
-													fmt.Printf("%+v %v\n",t,t.Msg=="success")
+													//fmt.Printf("%+v %v\n",t,t.Msg=="success")
+													read_chanxdd_num++
 													if t.Msg=="success" {
+														read_chanxdds_num++
 														//锁定卖出的库存
-														_,err = util.DB.Exec("update stock set stock_num=stock_num-?, band_stock_num=+? where userid=? and symbol=?",
+														_,err = util.DB.Exec("update stock set stock_num=stock_num-?, band_stock_num=band_stock_num+? where userid=? and symbol=?",
 															postdata.MsgData.Amount,postdata.MsgData.Amount,  int(wsConn.user.Id), postdata.MsgData.Symbol)
 														fmt.Printf("卖出%+v 多少个%+v,价格%+v\n",postdata.MsgData.Symbol,postdata.MsgData.Amount,postdata.MsgData.Price)
 														if err != nil {
@@ -256,7 +275,7 @@ func (wsConn *wsConnection) reqHandle(){
 													}
 													//mm,_ :=json.Marshal(t)
 													if err := wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_OK,"请求成功！",t)); err != nil {
-														log.Println("发送消息给客户端发生错误", err.Error())
+														log.Println("发送消息给客户端发生错误2", err.Error())
 														// 切断服务
 														wsConn.close()
 													}
@@ -282,7 +301,7 @@ func (wsConn *wsConnection) reqHandle(){
 											wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"无法撤单，未找到该订单！",""));
 										log.Printf("get failed, err:%v\n", err)
 									}else{
-										if status==1 || status==3{//1成功2部分成交0未成交3撤单
+										if status==1 || status==3 || status==4{//1成功2部分成交0未成交3撤单
 											wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"无法撤单，订单已全部成交或已申请撤单！",""));
 											log.Println("无法撤单，订单已全部成交或已申请撤单")
 											goto END
@@ -297,7 +316,7 @@ func (wsConn *wsConnection) reqHandle(){
 											}
 											//mm,_ :=json.Marshal(t)
 											if err := wsConn.wsSocket.WriteMessage(websocket.TextMessage, postdata.FormatReturn(util.HTTP_OK,"请求成功！",t)); err != nil {
-												log.Println("发送消息给客户端发生错误", err.Error())
+												log.Println("发送消息给客户端发生错误3", err.Error())
 												// 切断服务
 												wsConn.close()
 											}
@@ -309,35 +328,59 @@ func (wsConn *wsConnection) reqHandle(){
 								fmt.Println("END!!!")
 						}
 					case 2://2查询自己的订单
-						where := " where userid=? "
-						if postdata.MsgData2.Status>0 {
-							where +=" and status=" + strconv.Itoa(postdata.MsgData2.Status)
-						}
-						if postdata.MsgData2.Orderid!="" {
-							where +=" and orderid=" + postdata.MsgData2.Orderid
-						}
-						if postdata.MsgData2.Symbol!="" {
-							where +=" and symbol='" + postdata.MsgData2.Symbol +"'"
-						}
-						sqlStr := "select orderid,status,create_time,deal_time,symbol,action,side,amount,price,userid from `order` " + where
-						var OrderList []util.OrderLine
-						err := util.DB.Select(&OrderList, sqlStr,wsConn.user.Id)
-						if err != nil{
-							wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"未查询到信息！",""));
-							log.Printf("err %+v\n",err)
+						if postdata.MsgData2.Status==4{
+							where := " where 1=1 "
+							if postdata.MsgData2.Symbol!="" {
+								where +=" and symbol='matching:trades:" + postdata.MsgData2.Symbol +"'"
+							}
+							//sqlStr := "select makerid,takerid,takerside,amount,price,deal_time from `match_log` " + where +" order by deal_time desc"
+							sqlStr := "select a.*,(select name from `order` join user on `order`.userid=`user`.id where orderid=makerid) mname,(select name from `order` join user on `order`.userid=`user`.id where orderid=takerid) tname from (select makerid,takerid,takerside,0+cast(amount AS CHAR) amount,0+cast(price AS CHAR) price,DATE_FORMAT(deal_time,\"%Y-%m-%d %H:%i:%s\") as deal_time from `match_log` " + where +" order by deal_time desc) a"
+							var MatchList []util.MatchLine
+							err := util.DB.Select(&MatchList, sqlStr)
+							//fmt.Printf("aa:%+v",MatchList)
+							if err != nil{
+								wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"未查询到信息！",""));
+								log.Printf("err %+v\n",err)
+							}else{
+								wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_OK,"查询成功！",MatchList));
+							}
 						}else{
-							wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_OK,"查询成功！",OrderList));
+							where := " where userid=? "
+							switch postdata.MsgData2.Status {
+							case 1://委托
+								where +=" and status in(0,2,3)"
+							case 2://撤单
+								where +=" and status=4"
+							case 3://成交记录
+								where +=" and status=1"
+							}
+							if postdata.MsgData2.Orderid!="" {
+								where +=" and orderid=" + postdata.MsgData2.Orderid
+							}
+							if postdata.MsgData2.Symbol!="" {
+								where +=" and symbol='" + postdata.MsgData2.Symbol +"'"
+							}
+							sqlStr := "select orderid,status,DATE_FORMAT(create_time,\"%Y-%m-%d %H:%i:%s\") as create_time,DATE_FORMAT(deal_time,\"%Y-%m-%d %H:%i:%s\") as deal_time,symbol,action,side,0+cast(amount AS CHAR) amount,0+cast(price AS CHAR) price,userid,0+cast(deal_stock AS CHAR) deal_stock,0+cast(deal_amount AS CHAR) deal_amount,0+cast(deal_money AS CHAR) deal_money from `order` " + where +"order by create_time desc"
+							var OrderList []util.OrderLine
+							err := util.DB.Select(&OrderList, sqlStr,wsConn.user.Id)
+							if err != nil{
+								wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"未查询到信息！",""));
+								log.Printf("err %+v\n",err)
+							}else{
+								wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_OK,"查询成功！",OrderList));
+							}
 						}
+
 					case 3://五档请求
 						if postdata.MsgData2.Symbol !="" {
-							key := "data:top100:s:symbol:"+ postdata.MsgData2.Symbol
+							key := "data:top5:s:symbol:"+ postdata.MsgData2.Symbol
 							top100_string,err :=redigo.Bytes(conn.Do("get",key))
 							if err!=nil {
 								log.Printf("get top100，%+v err %+v\n",key,err)
 							}else{
 								top100:= make(map[string]interface{})
 								err := json.Unmarshal(top100_string,&top100)
-								log.Printf("top100:%+v %+v err:%+v\n",key,top100,err)
+								log.Printf("err:%+v\n",err)
 								wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_OK,"",top100));
 							}
 						}else{
@@ -345,26 +388,31 @@ func (wsConn *wsConnection) reqHandle(){
 						}
 					case 4://用户信息
 						sqlStr := "select symbol,stock_num,last_time,band_stock_num from `stock` where userid=? "
-
 						var StockList []*auth.Stock
-						err :=util.DB.Select(&StockList, sqlStr,wsConn.user.Id)
-						fmt.Printf("%+v   %+v\n",err,StockList)
+						_ =util.DB.Select(&StockList, sqlStr,wsConn.user.Id)
+						//fmt.Printf("%+v   %+v\n",err,StockList)
 						//wsConn.user.Stocks = StockList
 						var tmp_map = make(map[string]*auth.Stock)
 						for _,v:=range StockList  {
-							fmt.Printf("%+v   %+v\n",v.Symbol ,v)
+							//fmt.Printf("%+v   %+v\n",v.Symbol ,v)
 							tmp_map[v.Symbol] = v
 						}
 						wsConn.user.Stocks = tmp_map
 						wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_OK,"",wsConn.user));
+					case 5:
+
 				default:
 					wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"未知消息类型！",""));
 					log.Printf("未知消息类型 %+v\n",postdata)
 
 				}
 			case <-wsConn.closeChan:
-			// 获取到关闭通知
-			return
+				// 获取到关闭通知,等消息处理完后关闭改携程
+				//for{
+					if len(wsConn.inChan)==0{
+						return
+					}
+				//}
 		}
 	}
 }
@@ -403,15 +451,18 @@ func (wsConn *wsConnection) wsWriteLoop() {
 			data := &auth.Userinfo{}
 			json.Unmarshal(msg.data,data)
 			if err := wsConn.wsSocket.WriteMessage(msg.messageType,util.FormatReturn(util.HTTP_OK,"",data)); err != nil {
-				log.Println("发送消息给客户端发生错误", err.Error())
+				log.Println("发送消息给客户端发生错误4", err.Error())
 				// 切断服务
 				wsConn.close()
 				return
 			}
 		case <-wsConn.closeChan:
-			// 获取到关闭通知
-			return
-
+			// 获取到关闭通知,等消息处理完后关闭改携程
+			for{
+				if len(wsConn.outChan)==0{
+					return
+				}
+			}
 		}
 	}
 }
@@ -449,14 +500,16 @@ func StartWebsocket(addrPort string) {
 	wsUidToWsid = make(map[int64]int64)
 	http.HandleFunc("/ws", wsHandler)
 	http.HandleFunc("/http", httpHandler)
-	for i:=0;i<3;i++ {
+	http.HandleFunc("/initboot", auth.InitBoot)
+	http.HandleFunc("/bootlist", auth.Bootlist)
+	for i:=0;i<30;i++ {
 		//开多少个协程，每个协程对应一个消费组下的消费组
 		go listenMQ(i)
 	}
 	http.ListenAndServe(addrPort, nil)
 }
 func listenMQ(i int)  {
-	c := time.NewTicker(5 * time.Second)
+	c := time.NewTicker(2 * time.Second)
 	conn := util.GetRedisPool()
 	defer conn.Close()
 	for _ = range c.C {
@@ -492,6 +545,8 @@ func listenMQ(i int)  {
 											//xack testxkey mygroup 1652948829278-0
 											conn.Do("xack",symbol,groups_name,key[0])
 											log.Printf("处理订单成功  %+v\n", takerId)
+
+
 											//mysql 的状态改好，说明消息消费成功
 											if wid, ok := wsUidToWsid[userid]; ok {
 												//更新用户的货币存量
@@ -504,12 +559,20 @@ func listenMQ(i int)  {
 												if err!=nil {
 													log.Printf("获取user 失败 %+v\n", err)
 												}else{
-													wsConnAll[wid].user.Money = User_money.Money
-													wsConnAll[wid].user.Band_money = User_money.Band_money
+													if wca,o:=wsConnAll[wid];o{
+														wca.user.Money = User_money.Money
+														wca.user.Band_money = User_money.Band_money
+													}
 												}
 												// 该用户存在，发送订单成功的消息
-												wsConnAll[wid].wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"订单成功！", val))
+												if wca,o:=wsConnAll[wid];o{
+													fmt.Printf("debug:%+v,%+v\n",wsConnAll,wid);
 
+													//wca.Mux.Lock()
+													//wca.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"订单成功！", val))
+													//wca.Mux.Unlock()
+													wca.sendWsMsg(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"订单成功！", val))
+												}
 											}
 										}else{
 											log.Printf("处理订单失败takerId  %+v\n", takerId)
@@ -533,17 +596,32 @@ func listenMQ(i int)  {
 												if err!=nil {
 													log.Printf("获取user 失败 %+v\n", err)
 												}else{
-													wsConnAll[wid].user.Money = User_money.Money
-													wsConnAll[wid].user.Band_money = User_money.Band_money
+													if wca,o:=wsConnAll[wid];o{
+														wca.user.Money = User_money.Money
+														wca.user.Band_money = User_money.Band_money
+													}
 												}
 												// 该用户存在，发送订单成功的消息
-												wsConnAll[wid].wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"订单成功！", val))
+												if wca,o:=wsConnAll[wid];o {
+													fmt.Printf("debug:%+v,%+v\n",wsConnAll,wid);
+
+													//wca.Mux.Lock()
+													//wca.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"订单成功！", val))
+													//wca.Mux.Unlock()
+													wca.sendWsMsg(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"订单成功！", val))
+												}
 
 											}
 										}else{
 											log.Printf("处理订单失败makerId  %+v\n", makerId)
 										}
 									}
+									//存成交日志
+									is,_:=strconv.ParseInt(val["timestamp"],10,64)
+									tm := time.Unix(is/1000000, 0)
+									dTime:= tm.Format("2006-01-02 15:04:05")
+									_,err:=util.DB.Exec("insert match_log (makerId,takerid,takerside,amount,price,deal_time,symbol) VALUES(?,?,?,?,?,?,?) ",val["makerId"],val["takerId"],val["takerSide"],val["amount"],val["price"],dTime,symbol)
+									log.Printf("存成交日志%v\n", err)
 									log.Printf("trades :%+v %+v %T\n", key[0],val,val)
 								}
 							}
@@ -611,7 +689,7 @@ func listenMQ(i int)  {
 														)
 												}
 												_,err2 = tx.Exec("update `order` set status=? where orderid=?",
-													1,
+													4,
 													val["orderId"],
 												)
 												if err1 != nil || err2 != nil {
@@ -656,15 +734,29 @@ func listenMQ(i int)  {
 												if err!=nil {
 													log.Printf("获取user 失败 %+v\n", err)
 												}else{
-													wsConnAll[wid].user.Money = User_money.Money
-													wsConnAll[wid].user.Band_money = User_money.Band_money
+													if wca,o:=wsConnAll[wid];o {
+														wca.user.Money = User_money.Money
+														wca.user.Band_money = User_money.Band_money
+													}
 												}
 												// 该用户存在，发送订单成功的消息
 												//mm,_ :=json.Marshal(val)
 												if status=="1" {
-													wsConnAll[wid].wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"撤单成功！", val))
+													if wca,o:=wsConnAll[wid];o {
+														fmt.Printf("debug:%+v,%+v\n",wsConnAll,wid);
+														//wca.Mux.Lock()
+														//wca.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"撤单成功！", val))
+														//wca.Mux.Unlock()
+														wca.sendWsMsg(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"撤单成功！", val))
+													}
 												}else{
-													wsConnAll[wid].wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"撤单失败！", val))
+													if wca,o:=wsConnAll[wid];o {
+														fmt.Printf("debug:%+v,%+v\n",wsConnAll,wid);
+														//wca.Mux.Lock()
+														//wca.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"撤单失败！", val))
+														//wca.Mux.Unlock()
+														wca.sendWsMsg(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"撤单失败！", val))
+													}
 												}
 
 											}
@@ -683,7 +775,18 @@ func listenMQ(i int)  {
 
 		//log.Printf("wsConnAll:%+v\n",wsConnAll)
 		//log.Printf("wsUidToWsid:%+v\n \n",wsUidToWsid)
+		log.Printf("goroutinenum:%+v,||%+v,%+v,%+v,%+v,%+v \n",runtime.NumGoroutine(),read_num,read_chan_num,read_chanxd_num,read_chanxdd_num,read_chanxdds_num)
 	}
+}
+func (wsConn *wsConnection) sendWsMsg(msgtype int,data []byte){
+	defer func() {//避免并发时直接painc
+		if err:=recover();err!=nil{
+			fmt.Printf("recover %+v\n",err)
+		}
+	}()
+	wsConn.Mux.Lock()
+	wsConn.wsSocket.WriteMessage(msgtype,data)
+	defer wsConn.Mux.Unlock()
 }
 func init() {
 	//c, err := redis.Dial("tcp", "10.0.111.154:52311",redis.DialPassword("crimoon2015"))

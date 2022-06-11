@@ -1,16 +1,31 @@
 package main
 
 import (
-	"encoding/json"
-	"log"
+	"fmt"
+	"time"
 )
+func main() {
+	fmt.Println("bg")
+	//a:=sync.WaitGroup{}
+	//a.Add(1)
+	//go func() {
+	//	defer a.Done()
+	//	time.Sleep(time.Second)
+	//}()
+	//a.Wait()
+	select {
+	}
+	go func() {
+		fmt.Println("goroutine")
+		time.Sleep(time.Second)
+	}()
 
-func main(){
-	top100_string :=[]byte(`{"22":{"side":0,"price":"22","amount":"11"},"44":{"side":0,"price":"44","amount":"14"}}`)
-	top100:= make(map[string]map[string]interface{})
-	err := json.Unmarshal(top100_string,&top100)
-	log.Printf("top100:%+v %+v err:%+v\n",key,top100,err)
+
+	fmt.Println("end")
 
 
 }
+
+
+
 

@@ -20,7 +20,7 @@ type orderFace interface {
 	GenerateOrderId()	//生成订单号
 }
 type Order struct {
-	OrderID int64
+	OrderID string
 }
 var OrderIdWork  *OrderWorker
 
@@ -56,6 +56,18 @@ type OrderLine struct {
 	Price float64
 	Userid int
 	Deal_amount float64 `mysql:"deal_amount"`
+	Deal_stock float64
+	Deal_money float64
+}
+type MatchLine struct {
+	MName string
+	TName string
+	Makerid string `json:"makerid"`
+	Takerid string `json:"takerid"`
+	Takerside string `json:"takerside"`
+	Amount string `json:"amount"`
+	Price string `json:"price"`
+	Deal_time string `json:"deal_time"`
 }
 func init()  {
 	OrderIdWork = NewOrderWorker()
@@ -66,9 +78,9 @@ func init()  {
 //	fmt.Printf("%v ",o.OrderID)
 //}
 //生成订单号
-func (o *Order) GenerateOrderId() int64{
+func (o *Order) GenerateOrderId() string{
 	//fmt.Printf("\n aaaaaaaa %v %v\n",OrderIdWork,&OrderIdWork)
-	o.OrderID = OrderIdWork.GetId()
+	o.OrderID = OrderIdWork.GetId(time.Now())
 	return o.OrderID
 }
 type Api_struct struct {
@@ -79,7 +91,7 @@ func (o *Order) PlaceOrder(data *PostData,userid int) *Api_struct{
 	data.Time = time.Now().Unix()
 	md5str := fmt.Sprintf("%x", md5.Sum([]byte(strconv.FormatInt(data.Time, 10) + "a4fdc2af6949b3945b8e556d9fbce343")))
 	data.Sign = md5str
-	data.OrderId = strconv.FormatInt(o.GenerateOrderId(), 10)
+	data.OrderId = o.GenerateOrderId()
 	data.Type = 0
 	res := o.post(data)
 
@@ -198,6 +210,8 @@ func OrderMQHandle(orderid string,mq map[string]string) int64{
 		//更新用户对应标的存量
 		_,err3 = tx.Exec("insert stock (userid,symbol,band_stock_num,last_time) VALUES(?,?,?,?) " +
 			"on DUPLICATE KEY UPDATE userid=VALUES(userid),symbol=VALUES(symbol),last_time=VALUES(last_time),band_stock_num=band_stock_num-VALUES(band_stock_num)",User.Userid,User.Symbol,mq_amount,now_time)
+
+
 	}
 	if err1 != nil || err2 != nil || err3 != nil{
 		tx.Rollback()
@@ -205,6 +219,19 @@ func OrderMQHandle(orderid string,mq map[string]string) int64{
 		return 0
 	}else{
 		tx.Commit()
+
+		//更新订单记录成交时的存量，对账
+		sqlStr := "select a.stock_num,(b.money+b.band_money) as money from(select userid,(stock_num+band_stock_num) as stock_num from `stock` where userid=? and symbol=? ) a join  user b on a.userid=b.id"
+		var User_money struct{
+			Stock_num float64
+			Money float64
+		}
+		err := DB.Get(&User_money, sqlStr,User.Userid,User.Symbol)
+		if err==nil {
+			_,er1:=DB.Exec("update `order` set deal_stock=?,deal_money=? where orderid=?", User_money.Stock_num, User_money.Money,orderid)
+			log.Printf("更新订单记录成交时的存量%v\n", er1)
+		}
+
 		return User.Userid
 	}
 }
