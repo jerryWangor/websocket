@@ -1,0 +1,147 @@
+[logTool]2022/06/16 07:05:36 main.go:23: asd
+[logTool]2022/06/16 07:05:47 login.go:57: userinfo {1 帅帅 99720.2 1,2 0  map[]}
+[logTool]2022/06/16 07:05:47 server.go:124: 当前在线人数 1
+[logTool]2022/06/16 07:05:54 server.go:167: 消息读取出现错误 websocket: close 1005 (no status)
+[logTool]2022/06/16 07:05:54 server.go:484: 关闭连接被调用了
+[logTool]2022/06/16 07:05:54 login.go:57: userinfo {1 帅帅 99720.2 1,2 0  map[]}
+[logTool]2022/06/16 07:05:54 server.go:124: 当前在线人数 1
+[logTool]2022/06/16 07:06:04 main.go:23: asd
+[logTool]2022/06/16 07:06:04 login.go:57: userinfo {1 帅帅 99720.2 1,2 0  map[]}
+[logTool]2022/06/16 07:06:04 server.go:124: 当前在线人数 1
+[logTool]2022/06/16 07:06:05 server.go:167: 消息读取出现错误 websocket: close 1005 (no status)
+[logTool]2022/06/16 07:06:05 server.go:484: 关闭连接被调用了
+[logTool]2022/06/16 07:06:06 login.go:57: userinfo {1 帅帅 99720.2 1,2 0  map[]}
+[logTool]2022/06/16 07:06:06 server.go:124: 当前在线人数 1
+[logTool]2022/06/16 07:06:13 order.go:141: 参数 {"time":1655363173,"sign":"559d629fa4d91b07a1600afbcb4b4bda","action":0,"symbol":"BTC","orderId":"202206161506133589680001","side":0,"type":0,"amount":1,"price":13} 
+ 下单操作接口返回 {"code":0,"msg":"success"} 
+[logTool]2022/06/16 07:06:13 server.go:332: END!!!
+[logTool]2022/06/16 07:06:14 order.go:212: 订单:202206161506133589680001,买单，成本公式((0.002795*100020)+(1*13))/(100020+1)
+[logTool]2022/06/16 07:06:14 order.go:264: 更新订单记录成交时的存量<nil>
+[logTool]2022/06/16 07:06:14 server.go:559: 处理订单成功  202206161506133589680001
+[logTool]2022/06/16 07:06:14 server.go:581: debug:map[2:0xc000300ae0],2
+[logTool]2022/06/16 07:06:14 order.go:240: 订单:202206161419005597920069,卖单，成本公式((-0.024948*99522)-(1*13))/(99522-1)
+[logTool]2022/06/16 07:06:14 order.go:264: 更新订单记录成交时的存量<nil>
+[logTool]2022/06/16 07:06:14 server.go:598: 处理订单成功  202206161419005597920069
+[logTool]2022/06/16 07:06:14 server.go:636: 存成交日志<nil>
+[logTool]2022/06/16 07:06:14 server.go:637: trades :1655363173578-0 map[amount:1 makerId:202206161419005597920069 price:13 takerId:202206161506133589680001 takerSide:0 timestamp:1655363173713234] map[string]string
+[logTool]2022/06/16 15:07:45 main.go:23: asd
+[logTool]2022/06/16 15:13:17 login.go:57: userinfo {1 帅帅 99707.2 1,2 0  map[]}
+[logTool]2022/06/16 15:13:17 server.go:124: 当前在线人数 1
+[logTool]2022/06/16 15:13:25 order.go:141: 参数 {"time":1655363605,"sign":"87f47c7c0d70a3072408f2aedefa7d44","action":0,"symbol":"BTC","orderId":"202206161513258785920001","side":0,"type":0,"amount":55,"price":15} 
+ 下单操作接口返回 {"code":0,"msg":"success"} 
+[logTool]2022/06/16 15:13:25 server.go:332: END!!!
+[logTool]2022/06/16 15:13:25 order.go:212: 订单:202206161513258785920001,买单，成本公式((0.002925*100021)+(28*14.3))/(100021+28)
+[logTool]2022/06/16 15:13:26 order.go:212: 订单:202206161513258785920001,买单，成本公式((0.006926*100049)+(27*14.7))/(100049+27)
+[logTool]2022/06/16 15:13:26 order.go:264: 更新订单记录成交时的存量<nil>
+[logTool]2022/06/16 15:13:26 server.go:559: 处理订单成功  202206161513258785920001
+[logTool]2022/06/16 15:13:26 server.go:581: debug:map[1:0xc000286420],1
+[logTool]2022/06/16 15:13:26 order.go:240: 订单:202206161418260657920062,卖单，成本公式((0.000049*26080943)-(28*14.3))/(26080943-28)
+[logTool]2022/06/16 15:13:26 order.go:264: 更新订单记录成交时的存量<nil>
+[logTool]2022/06/16 15:13:26 server.go:559: 处理订单成功  202206161513258785920001
+[logTool]2022/06/16 15:13:26 server.go:581: debug:map[1:0xc000286420],1
+[logTool]2022/06/16 15:13:26 order.go:240: 订单:202206161418257737920054,卖单，成本公式((-0.000042*12031343)-(27*14.7))/(12031343-27)
+[logTool]2022/06/16 15:13:26 order.go:264: 更新订单记录成交时的存量<nil>
+[logTool]2022/06/16 15:13:26 server.go:598: 处理订单成功  202206161418260657920062
+[logTool]2022/06/16 15:13:26 order.go:264: 更新订单记录成交时的存量<nil>
+[logTool]2022/06/16 15:13:26 server.go:598: 处理订单成功  202206161418257737920054
+[logTool]2022/06/16 15:13:26 server.go:636: 存成交日志<nil>
+[logTool]2022/06/16 15:13:26 server.go:637: trades :1655363605955-0 map[amount:28 makerId:202206161418260657920062 price:14.3 takerId:202206161513258785920001 takerSide:0 timestamp:1655363606092097] map[string]string
+[logTool]2022/06/16 15:13:26 server.go:636: 存成交日志<nil>
+[logTool]2022/06/16 15:13:26 server.go:637: trades :1655363605975-0 map[amount:27 makerId:202206161418257737920054 price:14.7 takerId:202206161513258785920001 takerSide:0 timestamp:1655363606112217] map[string]string
+[logTool]2022/06/16 15:32:44 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/16 15:32:44 server.go:124: 当前在线人数 2
+[logTool]2022/06/16 17:13:13 server.go:167: 消息读取出现错误 websocket: close 1005 (no status)
+[logTool]2022/06/16 17:13:13 server.go:484: 关闭连接被调用了
+[logTool]2022/06/16 17:13:14 login.go:57: userinfo {1 帅帅 98909.9 1,2 0  map[]}
+[logTool]2022/06/16 17:13:14 server.go:124: 当前在线人数 2
+[logTool]2022/06/16 18:02:48 server.go:167: 消息读取出现错误 websocket: close 1005 (no status)
+[logTool]2022/06/16 18:02:48 server.go:484: 关闭连接被调用了
+[logTool]2022/06/16 18:02:48 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/16 18:02:48 server.go:124: 当前在线人数 2
+[logTool]2022/06/16 18:26:16 server.go:167: 消息读取出现错误 websocket: close 1005 (no status)
+[logTool]2022/06/16 18:26:16 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 13:42:45 login.go:57: userinfo {2 汪汪 103773.3 3,5 0  map[]}
+[logTool]2022/06/17 13:42:45 server.go:124: 当前在线人数 2
+[logTool]2022/06/17 15:34:33 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:34:33 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:34:59 login.go:41: userinfo 登录 {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:34:59 login.go:41: userinfo 登录 {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:35:00 login.go:41: userinfo 登录 {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:35:00 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:35:00 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:00 server.go:121: 该用户存在，T出之前的客户端
+[logTool]2022/06/17 15:35:00 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:35:00 server.go:167: 消息读取出现错误 read tcp 10.0.17.46:20002->10.0.16.67:65434: use of closed network connection
+[logTool]2022/06/17 15:35:00 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:01 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:35:01 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:01 server.go:167: 消息读取出现错误 read tcp 10.0.17.46:20002->10.0.66.149:56582: use of closed network connection
+[logTool]2022/06/17 15:35:01 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:01 server.go:121: 该用户存在，T出之前的客户端
+[logTool]2022/06/17 15:35:01 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:35:04 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:35:04 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:04 server.go:167: 消息读取出现错误 read tcp 10.0.17.46:20002->10.0.66.149:56583: use of closed network connection
+[logTool]2022/06/17 15:35:04 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:04 server.go:121: 该用户存在，T出之前的客户端
+[logTool]2022/06/17 15:35:04 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:35:05 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:35:05 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:05 server.go:167: 消息读取出现错误 read tcp 10.0.17.46:20002->10.0.16.67:65454: use of closed network connection
+[logTool]2022/06/17 15:35:05 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:05 server.go:121: 该用户存在，T出之前的客户端
+[logTool]2022/06/17 15:35:05 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:35:08 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:35:08 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:08 server.go:167: 消息读取出现错误 read tcp 10.0.17.46:20002->10.0.66.149:56585: use of closed network connection
+[logTool]2022/06/17 15:35:08 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:08 server.go:121: 该用户存在，T出之前的客户端
+[logTool]2022/06/17 15:35:08 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:35:08 server.go:167: 消息读取出现错误 websocket: close 1001 (going away)
+[logTool]2022/06/17 15:35:08 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:35:50 login.go:41: userinfo 登录 {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:35:50 login.go:41: userinfo 登录 {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:35:51 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:35:51 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:43:55 server.go:167: 消息读取出现错误 websocket: close 1005 (no status)
+[logTool]2022/06/17 15:43:55 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:43:56 login.go:57: userinfo {2 汪汪 103773.3 3,5 0  map[]}
+[logTool]2022/06/17 15:43:56 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:58:09 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:58:09 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:58:09 server.go:167: 消息读取出现错误 read tcp 10.0.17.46:20002->10.0.16.33:56595: use of closed network connection
+[logTool]2022/06/17 15:58:09 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:58:09 server.go:121: 该用户存在，T出之前的客户端
+[logTool]2022/06/17 15:58:09 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:58:13 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:58:13 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:58:13 server.go:167: 消息读取出现错误 read tcp 10.0.17.46:20002->10.0.16.67:49442: use of closed network connection
+[logTool]2022/06/17 15:58:13 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:58:13 server.go:121: 该用户存在，T出之前的客户端
+[logTool]2022/06/17 15:58:13 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:58:17 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 15:58:17 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:58:17 server.go:167: 消息读取出现错误 read tcp 10.0.17.46:20002->10.0.16.33:56944: use of closed network connection
+[logTool]2022/06/17 15:58:17 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 15:58:17 server.go:121: 该用户存在，T出之前的客户端
+[logTool]2022/06/17 15:58:17 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 15:58:20 server.go:167: 消息读取出现错误 websocket: close 1005 (no status)
+[logTool]2022/06/17 15:58:20 server.go:484: 关闭连接被调用了
+[logTool]2022/06/17 16:09:18 login.go:57: userinfo {3 朱朱 100000 1 0  map[]}
+[logTool]2022/06/17 16:09:18 server.go:124: 当前在线人数 3
+[logTool]2022/06/17 16:09:32 server.go:234: 下单失败！余额不足！
+[logTool]2022/06/17 16:09:32 server.go:332: END!!!
+[logTool]2022/06/17 16:09:46 order.go:141: 参数 {"time":1655453386,"sign":"384fbeb83f60f9c1bfb84472d7a1d270","action":0,"symbol":"BTC","orderId":"202206171609466995920002","side":0,"type":0,"amount":100,"price":14.7} 
+ 下单操作接口返回 {"code":0,"msg":"success"} 
+[logTool]2022/06/17 16:09:46 server.go:332: END!!!
+[logTool]2022/06/17 16:09:48 order.go:212: 订单:202206171609466995920002,买单，成本公式((0*100000)+(14*14.7))/(100000+14)
+[logTool]2022/06/17 16:09:48 order.go:264: 更新订单记录成交时的存量<nil>
+[logTool]2022/06/17 16:09:48 server.go:559: 处理订单成功  202206171609466995920002
+[logTool]2022/06/17 16:09:48 server.go:581: debug:map[3:0xc00009c540 13:0xc000057500 17:0xc000286f00],17
+[logTool]2022/06/17 16:09:48 order.go:240: 订单:202206161418257737920054,卖单，成本公式((-0.000075*12031343)-(14*14.7))/(12031343-14)
+[logTool]2022/06/17 16:09:48 order.go:264: 更新订单记录成交时的存量<nil>
+[logTool]2022/06/17 16:09:48 server.go:598: 处理订单成功  202206161418257737920054
+[logTool]2022/06/17 16:09:48 server.go:636: 存成交日志<nil>
+[logTool]2022/06/17 16:09:48 server.go:637: trades :1655453386764-0 map[amount:14 makerId:202206161418257737920054 price:14.7 takerId:202206171609466995920002 takerSide:0 timestamp:1655453386856384] map[string]string
+[logTool]2022/06/17 16:11:27 server.go:167: 消息读取出现错误 websocket: close 1005 (no status)
+[logTool]2022/06/17 16:11:27 server.go:484: 关闭连接被调用了

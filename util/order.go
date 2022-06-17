@@ -138,7 +138,7 @@ func (o *Order) post(postData *PostData) []byte {
 		log.Println(err)
 	}
 	sb := string(body)
-	fmt.Printf("参数 %+v \n 下单操作接口返回 %v \n",string(postBody),sb)
+	log.Printf("参数 %+v \n 下单操作接口返回 %v \n",string(postBody),sb)
 	return body
 }
 
@@ -161,6 +161,17 @@ func OrderMQHandle(orderid string,mq map[string]string) int64{
 	if err!=nil {
 		log.Printf("获取原订单amount 失败 %+v info :%+v\n", err,orderid)
 		return 0
+	}
+	StockSqlStr := "select stock_num,cost from `stock` where userid=? and symbol=?"
+	var Stock struct{
+		Stock_num float64
+		Cost float64
+	}
+	err = DB.Get(&Stock, StockSqlStr,User.Userid,User.Symbol)
+	if err!=nil {
+		log.Printf("获取存量失败 %+v info :%+v\n", err,orderid)
+		Stock.Stock_num = 0
+		Stock.Cost = 0
 	}
 	var status int
 	mq_amount,_ := strconv.ParseFloat(mq["amount"],64)
@@ -193,8 +204,16 @@ func OrderMQHandle(orderid string,mq map[string]string) int64{
 		//fmt.Printf("买单成交价格：%+v，%+v,%+v,%+v \n",User.Price,mq_amount,dj,cj)
 		_,err2 = tx.Exec("update user set money=money+?, band_money=band_money-?  where id=?",cj, dj, User.Userid)
 		//更新用户对应标的存量
-		_,err3 = tx.Exec("insert stock (userid,symbol,stock_num,last_time) VALUES(?,?,?,?) " +
-			"on DUPLICATE KEY UPDATE userid=VALUES(userid),symbol=VALUES(symbol),last_time=VALUES(last_time),stock_num=VALUES(stock_num)+stock_num",User.Userid,User.Symbol,mq_amount,now_time)
+		//算成本价 ：最新 ((cost*stock_num)+(mq_amount*mq_price))/(stock_num+mq_amount)
+		tmp_cb :=decimal.NewFromFloat(Stock.Cost).Mul(decimal.NewFromFloat(Stock.Stock_num))
+		tmp_cur :=decimal.NewFromFloat(mq_amount).Mul(decimal.NewFromFloat(mq_price))
+		tmp_allnum :=decimal.NewFromFloat(Stock.Stock_num).Add(decimal.NewFromFloat(mq_amount))
+		cost :=tmp_cb.Add(tmp_cur).Div(tmp_allnum)
+		log.Printf("订单:%+v,买单，成本公式((%+v*%+v)+(%+v*%+v))/(%+v+%+v)",orderid,decimal.NewFromFloat(Stock.Cost),decimal.NewFromFloat(Stock.Stock_num),
+			decimal.NewFromFloat(mq_amount),decimal.NewFromFloat(mq_price),decimal.NewFromFloat(Stock.Stock_num),decimal.NewFromFloat(mq_amount),
+		)
+		_,err3 = tx.Exec("insert stock (userid,symbol,stock_num,last_time,cost) VALUES(?,?,?,?,?) " +
+			"on DUPLICATE KEY UPDATE userid=VALUES(userid),symbol=VALUES(symbol),last_time=VALUES(last_time),stock_num=VALUES(stock_num)+stock_num,cost=VALUES(cost)",User.Userid,User.Symbol,mq_amount,now_time,cost)
 
 	case 1: //卖单
 		now_time :=time.Now().Format("2006-01-02 15:04:05")
@@ -208,8 +227,21 @@ func OrderMQHandle(orderid string,mq map[string]string) int64{
 		cj := decimal.NewFromFloat(mq_amount).Mul(decimal.NewFromFloat(mq_price))
 		_,err2 = tx.Exec("update user set money=money+?  where id=?",cj, User.Userid)
 		//更新用户对应标的存量
-		_,err3 = tx.Exec("insert stock (userid,symbol,band_stock_num,last_time) VALUES(?,?,?,?) " +
-			"on DUPLICATE KEY UPDATE userid=VALUES(userid),symbol=VALUES(symbol),last_time=VALUES(last_time),band_stock_num=band_stock_num-VALUES(band_stock_num)",User.Userid,User.Symbol,mq_amount,now_time)
+		//算成本价 ：最新 ((cost*stock_num)-(mq_amount*mq_price))/(stock_num-mq_amount)
+		tmp_cb :=decimal.NewFromFloat(Stock.Cost).Mul(decimal.NewFromFloat(Stock.Stock_num))
+		tmp_cur :=decimal.NewFromFloat(mq_amount).Mul(decimal.NewFromFloat(mq_price))
+		tmp_allnum :=decimal.NewFromFloat(Stock.Stock_num).Sub(decimal.NewFromFloat(mq_amount))
+		var cost decimal.Decimal
+		if tmp_allnum.IsZero(){
+			cost = decimal.Zero
+		}else{
+			cost =tmp_cb.Sub(tmp_cur).Div(tmp_allnum)
+		}
+		log.Printf("订单:%+v,卖单，成本公式((%+v*%+v)-(%+v*%+v))/(%+v-%+v)",orderid,decimal.NewFromFloat(Stock.Cost),decimal.NewFromFloat(Stock.Stock_num),
+			decimal.NewFromFloat(mq_amount),decimal.NewFromFloat(mq_price),decimal.NewFromFloat(Stock.Stock_num),decimal.NewFromFloat(mq_amount),
+		)
+		_,err3 = tx.Exec("insert stock (userid,symbol,band_stock_num,last_time,cost) VALUES(?,?,?,?,?) " +
+			"on DUPLICATE KEY UPDATE userid=VALUES(userid),symbol=VALUES(symbol),last_time=VALUES(last_time),band_stock_num=band_stock_num-VALUES(band_stock_num),cost=VALUES(cost)",User.Userid,User.Symbol,mq_amount,now_time,cost)
 
 
 	}

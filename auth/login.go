@@ -2,7 +2,8 @@ package auth
 
 import (
 	"errors"
-	"fmt"
+	//"fmt"
+
 	"log"
 	"math/rand"
 	"net/http"
@@ -25,6 +26,8 @@ type Stock struct {
 	LastTime string `db:"last_time"`
 	StockNum float64 `db:"stock_num"`
 	BandStockNum float64 `db:"band_stock_num"`
+	Cost float64 `db:"cost"`
+	Cur_price float64
 }
 //HTTP登陆
 func Login(username string,password string)  (*Userinfo,error) {
@@ -35,7 +38,7 @@ func Login(username string,password string)  (*Userinfo,error) {
 		log.Printf("get failed, err:%v\n", err)
 		return &Userinfo{},errors.New("未找到该用户")
 	}
-	fmt.Printf("userinfo 登录 %v\n", u)
+	log.Printf("userinfo 登录 %v\n", u)
 	return &u,nil
 
 }
@@ -51,7 +54,7 @@ func CheckUser(userid string) (*Userinfo,error) {
 		log.Printf("get failed, err:%v\n", err)
 		return &Userinfo{},errors.New("未找到该用户")
 	}
-	fmt.Printf("userinfo %v\n", u)
+	log.Printf("userinfo %v\n", u)
 	return &u,nil
 }
 func Bootlist(resp http.ResponseWriter, req *http.Request){
@@ -69,7 +72,7 @@ func Bootlist(resp http.ResponseWriter, req *http.Request){
 	}
 	err := util.DB.Select(&MatchList, sqlStr)
 	if err != nil{
-		fmt.Printf("%+v\n",err)
+		log.Printf("%+v\n",err)
 		resp.Write(util.FormatReturn(util.HTTP_ERROR,"创建失败",""))
 	}else{
 		resp.Write(util.FormatReturn(util.HTTP_OK,"查询成功",MatchList))
@@ -95,7 +98,7 @@ func InitBoot(resp http.ResponseWriter, req *http.Request) {
 
 func CreateBoot(count1 string,money_range1 string,symbols1 string,symbol_num_range1 string) error  {
 	//count=100,money_range=1000,2000,symbols=BTC,DOGE,symbol_num_range=200,3000
-	fmt.Printf("%+v,%+v,%+v,%+v\n",count1,money_range1,symbols1,symbol_num_range1)
+	log.Printf("%+v,%+v,%+v,%+v\n",count1,money_range1,symbols1,symbol_num_range1)
 	if count1==""{
 		count1="100"
 	}
@@ -108,7 +111,7 @@ func CreateBoot(count1 string,money_range1 string,symbols1 string,symbol_num_ran
 	if symbol_num_range1==""{
 		symbol_num_range1="200,3000"
 	}
-	fmt.Printf("end %+v,%+v,%+v,%+v\n",count1,money_range1,symbols1,symbol_num_range1)
+	log.Printf("end %+v,%+v,%+v,%+v\n",count1,money_range1,symbols1,symbol_num_range1)
 	count,_ :=strconv.Atoi(count1)
 	money_range :=strings.Split(money_range1,",")
 	symbols :=strings.Split(symbols1,",")

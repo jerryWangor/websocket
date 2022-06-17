@@ -3,12 +3,16 @@ package socket_server
 import (
 	"encoding/json"
 	"fmt"
+
+	//"fmt"
 	"github.com/gorilla/websocket"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/shopspring/decimal"
 	"log"
 	"net/http"
-	"runtime"
+	//"os"
+
+	//"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -202,7 +206,7 @@ func (wsConn *wsConnection) reqHandle(){
 					wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"参数有误！",""))
 					log.Println("参数解析失败", err.Error())
 				}
-				log.Printf("请求来了 %+v\n",postdata)
+				//log.Printf("请求来了 %+v\n",postdata)
 				switch postdata.MsgType {
 					case 1://下单类型
 						read_chanxd_num++
@@ -268,7 +272,7 @@ func (wsConn *wsConnection) reqHandle(){
 														//锁定卖出的库存
 														_,err = util.DB.Exec("update stock set stock_num=stock_num-?, band_stock_num=band_stock_num+? where userid=? and symbol=?",
 															postdata.MsgData.Amount,postdata.MsgData.Amount,  int(wsConn.user.Id), postdata.MsgData.Symbol)
-														fmt.Printf("卖出%+v 多少个%+v,价格%+v\n",postdata.MsgData.Symbol,postdata.MsgData.Amount,postdata.MsgData.Price)
+														log.Printf("卖出%+v 多少个%+v,价格%+v\n",postdata.MsgData.Symbol,postdata.MsgData.Amount,postdata.MsgData.Price)
 														if err != nil {
 															log.Printf("get failed, err:%v\n", err)
 														}
@@ -307,7 +311,7 @@ func (wsConn *wsConnection) reqHandle(){
 											goto END
 										}else{
 											t := wsConn.order.CancelOrder(&postdata.MsgData)
-											fmt.Printf("%+v %v\n",t,t.Msg=="success")
+											log.Printf("%+v %v\n",t,t.Msg=="success")
 											if t.Msg=="success" {
 												_,err = util.DB.Exec("update `order` set status=? where orderid=?", 3,postdata.MsgData.OrderId )
 												if err != nil {
@@ -325,7 +329,7 @@ func (wsConn *wsConnection) reqHandle(){
 
 							}
 							END:
-								fmt.Println("END!!!")
+								log.Println("END!!!")
 						}
 					case 2://2查询自己的订单
 						if postdata.MsgData2.Status==4{
@@ -379,23 +383,31 @@ func (wsConn *wsConnection) reqHandle(){
 								log.Printf("get top100，%+v err %+v\n",key,err)
 							}else{
 								top100:= make(map[string]interface{})
-								err := json.Unmarshal(top100_string,&top100)
-								log.Printf("err:%+v\n",err)
+								 json.Unmarshal(top100_string,&top100)
+								//log.Printf("err:%+v\n",err)
 								wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_OK,"",top100));
 							}
 						}else{
 							wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_ERROR,"标的为空！",""));
 						}
 					case 4://用户信息
-						sqlStr := "select symbol,stock_num,last_time,band_stock_num from `stock` where userid=? "
+						sqlStr := "select symbol,stock_num,last_time,band_stock_num,cost from `stock` where userid=? "
 						var StockList []*auth.Stock
 						_ =util.DB.Select(&StockList, sqlStr,wsConn.user.Id)
 						//fmt.Printf("%+v   %+v\n",err,StockList)
 						//wsConn.user.Stocks = StockList
 						var tmp_map = make(map[string]*auth.Stock)
 						for _,v:=range StockList  {
-							//fmt.Printf("%+v   %+v\n",v.Symbol ,v)
+
+							key := "matching:s:price:"+ v.Symbol
+							cur_price,err :=redigo.String(conn.Do("get",key))
+							if err!=nil {
+								//log.Printf("get top100，%+v err %+v\n",key,err)
+							}else{
+								v.Cur_price,_ = strconv.ParseFloat(cur_price, 64)
+							}
 							tmp_map[v.Symbol] = v
+
 						}
 						wsConn.user.Stocks = tmp_map
 						wsConn.wsSocket.WriteMessage(websocket.TextMessage,postdata.FormatReturn(util.HTTP_OK,"",wsConn.user));
@@ -436,7 +448,7 @@ func (wsConn *wsConnection) getRedisPush()  {
 		//}
 		r,_ :=json.Marshal(wsConn.user)
 		wsConn.outChan <-&wsMessage{websocket.TextMessage,r}
-		fmt.Printf("%v \n", now)
+		log.Printf("%v \n", now)
 	}
 }
 
@@ -566,7 +578,7 @@ func listenMQ(i int)  {
 												}
 												// 该用户存在，发送订单成功的消息
 												if wca,o:=wsConnAll[wid];o{
-													fmt.Printf("debug:%+v,%+v\n",wsConnAll,wid);
+													log.Printf("debug:%+v,%+v\n",wsConnAll,wid);
 
 													//wca.Mux.Lock()
 													//wca.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"订单成功！", val))
@@ -603,7 +615,7 @@ func listenMQ(i int)  {
 												}
 												// 该用户存在，发送订单成功的消息
 												if wca,o:=wsConnAll[wid];o {
-													fmt.Printf("debug:%+v,%+v\n",wsConnAll,wid);
+													log.Printf("debug:%+v,%+v\n",wsConnAll,wid);
 
 													//wca.Mux.Lock()
 													//wca.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"订单成功！", val))
@@ -743,7 +755,7 @@ func listenMQ(i int)  {
 												//mm,_ :=json.Marshal(val)
 												if status=="1" {
 													if wca,o:=wsConnAll[wid];o {
-														fmt.Printf("debug:%+v,%+v\n",wsConnAll,wid);
+														log.Printf("debug:%+v,%+v\n",wsConnAll,wid);
 														//wca.Mux.Lock()
 														//wca.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"撤单成功！", val))
 														//wca.Mux.Unlock()
@@ -751,7 +763,7 @@ func listenMQ(i int)  {
 													}
 												}else{
 													if wca,o:=wsConnAll[wid];o {
-														fmt.Printf("debug:%+v,%+v\n",wsConnAll,wid);
+														log.Printf("debug:%+v,%+v\n",wsConnAll,wid);
 														//wca.Mux.Lock()
 														//wca.wsSocket.WriteMessage(websocket.TextMessage,util.FormatReturn(util.HTTP_OK,"撤单失败！", val))
 														//wca.Mux.Unlock()
@@ -775,13 +787,13 @@ func listenMQ(i int)  {
 
 		//log.Printf("wsConnAll:%+v\n",wsConnAll)
 		//log.Printf("wsUidToWsid:%+v\n \n",wsUidToWsid)
-		log.Printf("goroutinenum:%+v,||%+v,%+v,%+v,%+v,%+v \n",runtime.NumGoroutine(),read_num,read_chan_num,read_chanxd_num,read_chanxdd_num,read_chanxdds_num)
+		//log.Printf("goroutinenum:%+v,||%+v,%+v,%+v,%+v,%+v \n",runtime.NumGoroutine(),read_num,read_chan_num,read_chanxd_num,read_chanxdd_num,read_chanxdds_num)
 	}
 }
 func (wsConn *wsConnection) sendWsMsg(msgtype int,data []byte){
 	defer func() {//避免并发时直接painc
 		if err:=recover();err!=nil{
-			fmt.Printf("recover %+v\n",err)
+			log.Printf("recover %+v\n",err)
 		}
 	}()
 	wsConn.Mux.Lock()
@@ -794,11 +806,6 @@ func init() {
 	//if err != nil {
 	//	fmt.Println("sorry,redis_conn error:",err)
 	//}
-	// logFile, err := os.OpenFile("./a.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	// if err != nil {
-	// 	log.Panic("打开日志文件异常")
-	// }
-	// logger = log.New(nil, "socket \t", log.Ldate|log.Ltime|log.Lshortfile)
-	// logger = log
+
 }
 

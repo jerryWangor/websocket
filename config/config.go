@@ -1,6 +1,6 @@
 package config
 import (
-	"fmt"
+	//"fmt"
 	"github.com/spf13/viper"
 	"log"
 	"github.com/fsnotify/fsnotify"
@@ -33,14 +33,14 @@ func init(){
 		log.Printf("err:%s\n",err)
 	}
 	v.OnConfigChange(func(e fsnotify.Event) {
-		fmt.Printf("config is change :%s  %s\n", e.String(),e.Name)
+		log.Printf("config is change :%s  %s\n", e.String(),e.Name)
 		if err := v.ReadInConfig();err != nil {
 			log.Printf("err:%s\n",err)
 		}
 		if err := v.Unmarshal(GlobalConfig) ; err != nil{
 			log.Printf("err:%s\n",err)
 		}
-		fmt.Printf("up config %+v \n",GlobalConfig)
+		log.Printf("up config %+v \n",GlobalConfig)
 		//cancel()
 	})
 	v.WatchConfig()
